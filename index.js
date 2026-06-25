@@ -51,7 +51,19 @@ app.all("/result4/", (req, res) => {
   );
 });
 
-app.get("/:date", (req, res) => {
+app.get("/api/rv/:value/", (req, res) => {
+  const value = req.params.value;
+
+  if (!/^[a-z]+$/.test(value)) {
+    return res.status(404).type("text/plain").send("Not found");
+  }
+
+  const reversed = value.split("").reverse().join("");
+
+  res.type("text/plain").send(reversed);
+});
+
+function sendDateResponse(req, res) {
   const { routeDate, fullDate } = getMoscowDate();
   const dateFromRoute = req.params.date;
 
@@ -67,19 +79,10 @@ app.get("/:date", (req, res) => {
       login: LOGIN
     })
   );
-});
+}
 
-app.get("/api/rv/:value/", (req, res) => {
-  const value = req.params.value;
-
-  if (!/^[a-z]+$/.test(value)) {
-    return res.status(404).type("text/plain").send("Not found");
-  }
-
-  const reversed = value.split("").reverse().join("");
-
-  res.type("text/plain").send(reversed);
-});
+app.get("/:date", sendDateResponse);
+app.get("/:date/", sendDateResponse);
 
 app.get("/", (req, res) => {
   res.type("text/plain").send("Server is working");
