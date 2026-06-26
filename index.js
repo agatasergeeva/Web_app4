@@ -1,57 +1,48 @@
 import express from "express";
-import cors from "cors";
-import busboy from "busboy";
+import multer from "multer";
 import zlib from "zlib";
 
 const app = express();
 
 const LOGIN = "agata_86";
 
-app.use(cors());
-
-app.get("/login", (req, res) => {
-  res
-    .status(200)
-    .type("text/plain")
-    .send(LOGIN);
+const upload = multer({
+  storage: multer.memoryStorage()
 });
 
-app.post("/zipper", (req, res) => {
-  const formParser = busboy({
-    headers: req.headers
-  });
+app.get("/", (req, res) => {
+  res.type("text/plain").send("Server is working");
+});
 
-  const parts = [];
+app.get("/login", (req, res) => {
+  res.type("text/plain").send(LOGIN);
+});
 
-  formParser.on("file", (fieldName, fileStream) => {
-    fileStream.on("data", (chunk) => {
-      parts.push(chunk);
-    });
-  });
+app.post("/zipper", upload.any(), (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).type("text/plain").send("No file uploaded");
+    }
 
-  formParser.on("field", (fieldName, value) => {
-    parts.push(Buffer.from(value));
-  });
+    const file = req.files[0];
+    const compressed = zlib.gzipSync(file.buffer);
 
-  formParser.on("error", () => {
-    res
-      .status(400)
-      .type("text/plain")
-      .end("Bad multipart data");
-  });
+    res.setHeader("Content-Type", "application/gzip");
+    res.setHeader("Content-Disposition", 'attachment; filename="result.gz"');
 
-  formParser.on("finish", () => {
-    const source = Buffer.concat(parts);
-    const compressed = zlib.gzipSync(source);
+    res.send(compressed);
+  } catch (error) {
+    res.status(500).type("text/plain").send("Gzip error");
+  }
+});
 
-    res
-      .status(200)
-      .set("Content-Type", "application/gzip")
-      .set("Content-Disposition", 'attachment; filename="result.gz"')
-      .end(compressed);
-  });
-
-  req.pipe(formParser);
+app.get("/zipper", (req, res) => {
+  res.type("text/html").send(`
+    <form method="POST" action="/zipper" enctype="multipart/form-data">
+      <input type="file" name="file">
+      <button type="submit">Upload</button>
+    </form>
+  `);
 });
 
 const PORT = process.env.PORT;
