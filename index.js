@@ -1,48 +1,57 @@
 import express from "express";
-import multer from "multer";
+import cors from "cors";
+import busboy from "busboy";
 import zlib from "zlib";
 
 const app = express();
 
 const LOGIN = "agata_86";
 
-const upload = multer({
-  storage: multer.memoryStorage()
-});
-
-app.get("/", (req, res) => {
-  res.type("text/plain").send("Server is working");
-});
+app.use(cors());
 
 app.get("/login", (req, res) => {
-  res.type("text/plain").send(LOGIN);
+  res
+    .status(200)
+    .type("text/plain")
+    .send(LOGIN);
 });
 
-app.post("/zipper", upload.any(), (req, res) => {
-  try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).type("text/plain").send("No file uploaded");
-    }
+app.post("/zipper", (req, res) => {
+  const formParser = busboy({
+    headers: req.headers
+  });
 
-    const file = req.files[0];
-    const compressed = zlib.gzipSync(file.buffer);
+  const parts = [];
 
-    res.setHeader("Content-Type", "application/gzip");
-    res.setHeader("Content-Disposition", 'attachment; filename="result.gz"');
+  formParser.on("file", (fieldName, fileStream) => {
+    fileStream.on("data", (chunk) => {
+      parts.push(chunk);
+    });
+  });
 
-    res.send(compressed);
-  } catch (error) {
-    res.status(500).type("text/plain").send("Gzip error");
-  }
-});
+  formParser.on("field", (fieldName, value) => {
+    parts.push(Buffer.from(value));
+  });
 
-app.get("/zipper", (req, res) => {
-  res.type("text/html").send(`
-    <form method="POST" action="/zipper" enctype="multipart/form-data">
-      <input type="file" name="file">
-      <button type="submit">Upload</button>
-    </form>
-  `);
+  formParser.on("error", () => {
+    res
+      .status(400)
+      .type("text/plain")
+      .end("Bad multipart data");
+  });
+
+  formParser.on("finish", () => {
+    const source = Buffer.concat(parts);
+    const compressed = zlib.gzipSync(source);
+
+    res
+      .status(200)
+      .set("Content-Type", "application/gzip")
+      .set("Content-Disposition", 'attachment; filename="result.gz"')
+      .end(compressed);
+  });
+
+  req.pipe(formParser);
 });
 
 const PORT = process.env.PORT;
