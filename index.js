@@ -1,38 +1,59 @@
 import express from "express";
-import multer from "multer";
+import cors from "cors";
+import busboy from "busboy";
 import zlib from "zlib";
 
 const app = express();
 
 const LOGIN = "agata_86";
 
-const upload = multer({
-  storage: multer.memoryStorage()
-});
+app.use(cors());
 
 app.get("/login", (req, res) => {
-  res.setHeader("Content-Type", "text/plain; charset=UTF-8");
-  res.end(LOGIN);
+  res
+    .status(200)
+    .type("text/plain")
+    .send(LOGIN);
 });
 
-app.post("/zipper", upload.any(), (req, res) => {
-  const files = req.files || [];
+app.post("/zipper", (req, res) => {
+  const formParser = busboy({
+    headers: req.headers
+  });
 
-  if (files.length === 0) {
-    res.status(400);
-    res.setHeader("Content-Type", "text/plain; charset=UTF-8");
-    return res.end("No file uploaded");
-  }
+  const parts = [];
 
-  const sourceBuffer = files[0].buffer;
-  const compressedBuffer = zlib.gzipSync(sourceBuffer);
+  formParser.on("file", (fieldName, fileStream) => {
+    fileStream.on("data", (chunk) => {
+      parts.push(chunk);
+    });
+  });
 
-  res.status(200);
-  res.setHeader("Content-Type", "application/gzip");
-  res.setHeader("Content-Disposition", "attachment; filename=result.gz");
-  res.end(compressedBuffer);
+  formParser.on("field", (fieldName, value) => {
+    parts.push(Buffer.from(value));
+  });
+
+  formParser.on("error", () => {
+    res
+      .status(400)
+      .type("text/plain")
+      .end("Bad multipart data");
+  });
+
+  formParser.on("finish", () => {
+    const source = Buffer.concat(parts);
+    const compressed = zlib.gzipSync(source);
+
+    res
+      .status(200)
+      .set("Content-Type", "application/gzip")
+      .set("Content-Disposition", 'attachment; filename="result.gz"')
+      .end(compressed);
+  });
+
+  req.pipe(formParser);
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 app.listen(PORT);
