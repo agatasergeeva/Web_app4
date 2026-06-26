@@ -10,38 +10,27 @@ const upload = multer({
   storage: multer.memoryStorage()
 });
 
-app.get("/", (req, res) => {
-  res.type("text/plain").send("Server is working");
-});
-
 app.get("/login", (req, res) => {
-  res.type("text/plain").send(LOGIN);
+  res.setHeader("Content-Type", "text/plain; charset=UTF-8");
+  res.end(LOGIN);
 });
 
 app.post("/zipper", upload.any(), (req, res) => {
-  let sourceBuffer = Buffer.from("");
+  const files = req.files || [];
 
-  if (req.files && req.files.length > 0) {
-    sourceBuffer = req.files[0].buffer;
-  } else if (req.body && Object.keys(req.body).length > 0) {
-    const firstValue = Object.values(req.body)[0];
-    sourceBuffer = Buffer.from(String(firstValue));
+  if (files.length === 0) {
+    res.status(400);
+    res.setHeader("Content-Type", "text/plain; charset=UTF-8");
+    return res.end("No file uploaded");
   }
 
-  const compressed = zlib.gzipSync(sourceBuffer);
+  const sourceBuffer = files[0].buffer;
+  const compressedBuffer = zlib.gzipSync(sourceBuffer);
 
+  res.status(200);
   res.setHeader("Content-Type", "application/gzip");
-  res.setHeader("Content-Disposition", 'attachment; filename="result.gz"');
-  res.send(compressed);
-});
-
-app.get("/zipper", (req, res) => {
-  res.type("text/html").send(`
-    <form method="POST" action="/zipper" enctype="multipart/form-data">
-      <input type="file" name="file">
-      <button type="submit">Upload</button>
-    </form>
-  `);
+  res.setHeader("Content-Disposition", "attachment; filename=result.gz");
+  res.end(compressedBuffer);
 });
 
 const PORT = process.env.PORT || 3000;
