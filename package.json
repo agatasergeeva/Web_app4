@@ -12,7 +12,6 @@
   "license": "ISC",
   "dependencies": {
     "express": "^5.2.1",
-    "mongoose": "5.8.11",
     "multer": "^2.0.2"
   }
 }
